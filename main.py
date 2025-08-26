@@ -338,11 +338,11 @@ def find_contact_by_phone(phone: str):
     if BITRIX_CONTACT_URL:
         r = http_get(
             BITRIX_CONTACT_URL,
-            params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE","ADDRESS"]},
+            params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE"]},
         )
     else:
         url = _b24_base() + "crm.contact.list.json"
-        r = http_get(url, params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE","ADDRESS"]})
+        r = http_get(url, params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE"]})
     r.raise_for_status()
     data = r.json()
     result = data.get("result", [])
@@ -382,7 +382,7 @@ def resolve_consultant(value):
 def get_last_deal_for_contact(contact_id: int, category_id: int):
     deals = b24_post("crm.deal.list", {
         "filter": {"CONTACT_ID": contact_id, "CATEGORY_ID": category_id},
-        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID", "UF_CRM_62F6731E2FFAF"],
+        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID", "UF_CRM_62F6731E2FFAF", "UF_CRM_1660157603"],
         "order":  {"DATE_CREATE": "DESC"}
     })
     return deals[0] if deals else None
@@ -489,7 +489,7 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
     deal_link = f"{_b24_domain()}/crm/deal/details/{deal_id}/"
     
     debt = deal.get("UF_CRM_62F6731E2FFAF") or "—"  # сумма из сделки
-    address = contact.get("ADDRESS") or "—"  # адрес из контакта
+    court = deal.get("UF_CRM_1660157603") or "—"  # court из контакта
 
     # ==== Google Drive ====
     doc_line = "📎 <b>Документи:</b> —"
@@ -543,7 +543,7 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
         f"📌 <b>Стадія:</b> {stage_name}{stage_extra}\n"
         f"👨‍💼 <b>Відповідальний юрист:</b> {resp_name}\n"
         f"🧑‍💼 <b>Менеджер з продажу:</b> {consultant_name}\n"
-        f"🏠 <b>Адреса:</b> {address}\n"
+        f"🏠 <b>Суд:</b> {court}\n"
         f"💰 <b>Загальна сума боргу:</b> {debt}\n"
         f"{doc_line}"
     )
