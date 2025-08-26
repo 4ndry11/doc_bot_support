@@ -382,7 +382,7 @@ def resolve_consultant(value):
 def get_last_deal_for_contact(contact_id: int, category_id: int):
     deals = b24_post("crm.deal.list", {
         "filter": {"CONTACT_ID": contact_id, "CATEGORY_ID": category_id},
-        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID", "UF_CRM_62F6731E2FFAF", "UF_CRM_1660157603"],
+        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID", "UF_CRM_62F6731E2FFAF"],
         "order":  {"DATE_CREATE": "DESC"}
     })
     return deals[0] if deals else None
@@ -489,7 +489,32 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
     deal_link = f"{_b24_domain()}/crm/deal/details/{deal_id}/"
     
     debt = deal.get("UF_CRM_62F6731E2FFAF") or "—"  # сумма из сделки
-    court = deal.get("UF_CRM_1660157603") or "—"  # court из контакта
+    # ==== Прописка (ContactRequisiteHomeAddressText) ====
+    address = "—"
+    try:
+        reqs = b24_post("crm.requisite.list", {
+            "filter": {"ENTITY_TYPE_ID": 3, "ENTITY_ID": contact_id},
+            "select": ["ID"]
+        }) or []
+
+        for r in reqs:
+            rid = int(r["ID"])
+            rows = b24_post("crm.address.list", {
+                "filter": {"ENTITY_TYPE_ID": 8, "ENTITY_ID": rid, "TYPE_ID": 6}
+            }) or []
+            if rows:
+                address = rows[0].get("ADDRESS_1") or rows[0].get("ADDRESS") or "—"
+                break
+
+        # (опционально) если хочешь, убери это — fallback на контактный Home-адрес
+        if address == "—":
+            rows = b24_post("crm.address.list", {
+                "filter": {"ENTITY_TYPE_ID": 3, "ENTITY_ID": contact_id, "TYPE_ID": 6}
+            }) or []
+            if rows:
+                address = rows[0].get("ADDRESS_1") or rows[0].get("ADDRESS") or "—"
+    except Exception as e:
+        log.warning("home address fetch error: %s", e)
 
     # ==== Google Drive ====
     doc_line = "📎 <b>Документи:</b> —"
@@ -543,7 +568,7 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
         f"📌 <b>Стадія:</b> {stage_name}{stage_extra}\n"
         f"👨‍💼 <b>Відповідальний юрист:</b> {resp_name}\n"
         f"🧑‍💼 <b>Менеджер з продажу:</b> {consultant_name}\n"
-        f"🏠 <b>Суд:</b> {court}\n"
+        f"🏠 <b>Адреса (прописка):</b> {address}\n"
         f"💰 <b>Загальна сума боргу:</b> {debt}\n"
         f"{doc_line}"
     )
