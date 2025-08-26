@@ -14,7 +14,7 @@ from telegram.error import Conflict as TgConflict
 # ========= ТОЛЬКО эти читаем из окружения =========
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 BITRIX_WEBHOOK_BASE = os.getenv("BITRIX_WEBHOOK_BASE", "").strip()     # например: https://ua.zvilnymo.com.ua/rest/596/xxx/
-BITRIX_CONTACT_URL = os.getenv("BITRIX_CONTACT_URL", "").strip()       # можно задать полную ссылку crm.contact.list.json
+BITRIX_CONTACT_URL = os.getenv("BITRIX_CONTACT_URL", "").strip()      # можно задать полную ссылку crm.contact.list.json
 DRIVE_ROOT_FOLDER_ID = os.getenv("DRIVE_ROOT_FOLDER_ID", "").strip()
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "/etc/secrets/main_acc.json").strip()
 
@@ -338,11 +338,11 @@ def find_contact_by_phone(phone: str):
     if BITRIX_CONTACT_URL:
         r = http_get(
             BITRIX_CONTACT_URL,
-            params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE"]},
+            params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE","ADDRESS"]},
         )
     else:
         url = _b24_base() + "crm.contact.list.json"
-        r = http_get(url, params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE"]})
+        r = http_get(url, params={"filter[PHONE]": norm, "select[]": ["ID","NAME","LAST_NAME","SECOND_NAME","PHONE","ADDRESS"]})
     r.raise_for_status()
     data = r.json()
     result = data.get("result", [])
@@ -382,7 +382,7 @@ def resolve_consultant(value):
 def get_last_deal_for_contact(contact_id: int, category_id: int):
     deals = b24_post("crm.deal.list", {
         "filter": {"CONTACT_ID": contact_id, "CATEGORY_ID": category_id},
-        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID"],
+        "select": ["ID","TITLE","STAGE_ID","ASSIGNED_BY_ID","DATE_CREATE", CONSULTANT_FIELD, "CATEGORY_ID", "UF_CRM_62F6731E2FFAF"],
         "order":  {"DATE_CREATE": "DESC"}
     })
     return deals[0] if deals else None
@@ -487,6 +487,9 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
     consultant_name = resolve_consultant(consultant_raw)
 
     deal_link = f"{_b24_domain()}/crm/deal/details/{deal_id}/"
+    
+    debt = deal.get("UF_CRM_62F6731E2FFAF") or "—"  # сумма из сделки
+    address = contact.get("ADDRESS") or "—"  # адрес из контакта
 
     # ==== Google Drive ====
     doc_line = "📎 <b>Документи:</b> —"
@@ -540,6 +543,8 @@ def handle_check(update: Update, ctx: CallbackContext, raw_phone: str):
         f"📌 <b>Стадія:</b> {stage_name}{stage_extra}\n"
         f"👨‍💼 <b>Відповідальний юрист:</b> {resp_name}\n"
         f"🧑‍💼 <b>Менеджер з продажу:</b> {consultant_name}\n"
+        f"🏠 <b>Адреса:</b> {address}\n"
+        f"💰 <b>Загальна сума боргу:</b> {debt}\n"
         f"{doc_line}"
     )
     if history_block:
